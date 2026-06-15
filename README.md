@@ -4,6 +4,18 @@
 
 ![运行效果](docs/images/image.png)
 
+## 依赖安装
+
+- 安装 tmux：
+  ```bash
+  sudo apt install -y tmux
+  ```
+
+- 如果悬浮窗无法启动，安装 tkinter：
+  ```bash
+  sudo apt install -y python3-tk
+  ```
+
 ## 使用
 
 启动：
