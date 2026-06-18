@@ -17,6 +17,7 @@ TMUX_SESSION="codex_quota_watch"
 
 WATCH_SCRIPT="$SCRIPT_DIR/codex_tmux_status_watch.py"
 UI_SCRIPT="$SCRIPT_DIR/codex_float_ui.py"
+READY_SCRIPT="$SCRIPT_DIR/codex_status_ready.py"
 
 echo "Starting Codex usage watcher..."
 echo "Script dir : $SCRIPT_DIR"
@@ -43,6 +44,11 @@ fi
 
 if [ ! -f "$UI_SCRIPT" ]; then
   echo "ERROR: UI script not found: $UI_SCRIPT"
+  exit 1
+fi
+
+if [ ! -f "$READY_SCRIPT" ]; then
+  echo "ERROR: status ready script not found: $READY_SCRIPT"
   exit 1
 fi
 
@@ -82,12 +88,12 @@ WATCHER_PID=$!
 echo "$WATCHER_PID" > "$WATCH_PID"
 
 echo "Watcher PID: $WATCHER_PID"
-echo "Waiting for JSON..."
+echo "Waiting for quota values..."
 
-# 等待 JSON 生成
-for i in $(seq 1 20); do
-  if [ -f "$JSON_PATH" ]; then
-    echo "JSON ready."
+# 等待 JSON 中出现有效额度，避免首次冷启动时 UI 先读到空解析结果
+for i in $(seq 1 30); do
+  if python3 "$READY_SCRIPT" "$JSON_PATH"; then
+    echo "Quota values ready."
     break
   fi
 
@@ -100,8 +106,8 @@ for i in $(seq 1 20); do
   sleep 1
 done
 
-if [ ! -f "$JSON_PATH" ]; then
-  echo "WARNING: JSON not generated yet, UI will show waiting state."
+if ! python3 "$READY_SCRIPT" "$JSON_PATH"; then
+  echo "WARNING: quota values not ready yet, UI will show waiting state."
   echo "Check watcher log:"
   echo "  cat $WATCH_LOG"
 fi
