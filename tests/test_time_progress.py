@@ -21,6 +21,11 @@ class TimeRemainingPercentTest(unittest.TestCase):
 
         self.assertEqual(time_remaining_percent("Jun 22 00:00", 7 * 24 * 60, now), 50)
 
+    def test_weekly_progress_parses_codex_time_on_day_month_format(self):
+        now = datetime(2026, 6, 21, 22, 4, 0)
+
+        self.assertEqual(time_remaining_percent("10:04 on 25 Jun", 7 * 24 * 60, now), 50)
+
     def test_unparseable_reset_has_no_progress(self):
         now = datetime(2026, 6, 18, 12, 0, 0)
 

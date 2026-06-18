@@ -59,6 +59,8 @@ def parse_reset_datetime(reset_text: str, now: datetime | None = None):
         ("%Y %b %d, %H:%M", f"{now.year} {normalized}"),
         ("%Y %b %d %I:%M %p", f"{now.year} {normalized}"),
         ("%Y %b %d, %I:%M %p", f"{now.year} {normalized}"),
+        ("%Y %H:%M on %d %b", f"{now.year} {normalized}"),
+        ("%Y %I:%M %p on %d %b", f"{now.year} {normalized}"),
     )
     for fmt, value in year_formats:
         try:
