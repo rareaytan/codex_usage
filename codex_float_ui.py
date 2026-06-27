@@ -116,15 +116,27 @@ class CodexFloatingUI:
         self.root.attributes("-alpha", 0.94)
         self.root.overrideredirect(True)
 
-        # 初始位置
-        self.root.geometry("+1180+80")
-
         self.drag_x = 0
         self.drag_y = 0
 
         self.build_ui()
+        self.position_window()
         self.bind_drag_events()
         self.update_ui()
+
+    def position_window(self):
+        self.root.update_idletasks()
+
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        window_width = self.root.winfo_reqwidth()
+        window_height = self.root.winfo_reqheight()
+
+        margin = 24
+        x = max(margin, screen_width - window_width - margin)
+        y = min(80, max(margin, screen_height - window_height - margin))
+
+        self.root.geometry(f"+{x}+{y}")
 
     def build_ui(self):
         self.frame = tk.Frame(
