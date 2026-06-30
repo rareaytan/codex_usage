@@ -192,6 +192,9 @@ def parse_status(text: str) -> dict:
             continue
 
         if low.startswith("5h limit:"):
+            if result["limit_5h_left_percent"] is not None:
+                continue
+
             m = re.search(r"(\d+)%\s+left", ln, re.IGNORECASE)
             if m:
                 result["limit_5h_left_percent"] = int(m.group(1))
@@ -199,9 +202,18 @@ def parse_status(text: str) -> dict:
             m = re.search(r"resets\s+([^)│]+)", ln, re.IGNORECASE)
             if m:
                 result["limit_5h_reset"] = m.group(1).strip()
+            else:
+                if i + 1 < len(lines):
+                    next_ln = lines[i + 1]
+                    m2 = re.search(r"resets\s+([^)│]+)", next_ln, re.IGNORECASE)
+                    if m2:
+                        result["limit_5h_reset"] = m2.group(1).strip()
             continue
 
         if low.startswith("weekly limit:"):
+            if result["weekly_left_percent"] is not None:
+                continue
+
             m = re.search(r"(\d+)%\s+left", ln, re.IGNORECASE)
             if m:
                 result["weekly_left_percent"] = int(m.group(1))

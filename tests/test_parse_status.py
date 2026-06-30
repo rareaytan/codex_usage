@@ -1,0 +1,30 @@
+import unittest
+
+from codex_tmux_status_watch import parse_status
+
+
+class ParseStatusTest(unittest.TestCase):
+    def test_keeps_primary_limits_when_pro_status_includes_spark_limits(self):
+        text = """
+│  Account:                     rareay.tan@gmail.com (Plus)                    │
+│                                                                              │
+│  5h limit:                    [█████████████████░░░] 86% left (resets 20:53) │
+│  Weekly limit:                [██████████████████░░] 92% left                │
+│                               (resets 10:53 on 7 Jul)                        │
+│  GPT-5.3-Codex-Spark limit:                                                  │
+│  5h limit:                    [████████████████████] 100% left               │
+│                               (resets 22:06)                                 │
+│  Weekly limit:                [████████████████████] 100% left               │
+│                               (resets 17:06 on 7 Jul)                        │
+"""
+
+        status = parse_status(text)
+
+        self.assertEqual(status["limit_5h_left_percent"], 86)
+        self.assertEqual(status["limit_5h_reset"], "20:53")
+        self.assertEqual(status["weekly_left_percent"], 92)
+        self.assertEqual(status["weekly_reset"], "10:53 on 7 Jul")
+
+
+if __name__ == "__main__":
+    unittest.main()
