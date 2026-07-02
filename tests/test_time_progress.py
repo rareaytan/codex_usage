@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from codex_float_ui import time_remaining_percent
+from codex_float_ui import format_reset_text, status_is_stale, time_remaining_percent
 
 
 class TimeRemainingPercentTest(unittest.TestCase):
@@ -30,6 +30,36 @@ class TimeRemainingPercentTest(unittest.TestCase):
         now = datetime(2026, 6, 18, 12, 0, 0)
 
         self.assertIsNone(time_remaining_percent("N/A", 5 * 60, now))
+
+    def test_weekly_reset_shows_month_day_when_not_today(self):
+        now = datetime(2026, 7, 2, 8, 0, 0)
+
+        self.assertEqual(format_reset_text("weekly", "10:53 on 7 Jul", now), "7.7")
+
+    def test_weekly_reset_shows_time_when_today(self):
+        now = datetime(2026, 7, 7, 8, 0, 0)
+
+        self.assertEqual(format_reset_text("weekly", "10:53 on 7 Jul", now), "10:53")
+
+    def test_5h_reset_keeps_original_time_text(self):
+        now = datetime(2026, 7, 2, 8, 0, 0)
+
+        self.assertEqual(format_reset_text("h5", "13:43", now), "13:43")
+
+    def test_status_is_stale_after_more_than_three_minutes(self):
+        now = datetime(2026, 7, 2, 8, 4, 1)
+
+        self.assertTrue(status_is_stale("2026-07-02 08:01:00", now))
+
+    def test_status_is_not_stale_at_three_minutes(self):
+        now = datetime(2026, 7, 2, 8, 4, 0)
+
+        self.assertFalse(status_is_stale("2026-07-02 08:01:00", now))
+
+    def test_invalid_status_timestamp_is_stale(self):
+        now = datetime(2026, 7, 2, 8, 4, 0)
+
+        self.assertTrue(status_is_stale("bad timestamp", now))
 
 
 if __name__ == "__main__":

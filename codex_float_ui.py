@@ -106,6 +106,42 @@ def time_remaining_percent(
     return remaining_percent
 
 
+def format_reset_text(
+    prefix: str,
+    reset_text: str,
+    now: datetime | None = None,
+) -> str:
+    if not reset_text or reset_text == "N/A":
+        return "N/A"
+
+    if prefix != "weekly":
+        return reset_text
+
+    if now is None:
+        now = datetime.now()
+
+    reset_dt = parse_reset_datetime(reset_text, now)
+    if reset_dt is None:
+        return reset_text
+
+    if reset_dt.date() == now.date():
+        return reset_dt.strftime("%H:%M")
+
+    return f"{reset_dt.month}.{reset_dt.day}"
+
+
+def status_is_stale(timestamp: str, now: datetime | None = None) -> bool:
+    if now is None:
+        now = datetime.now()
+
+    try:
+        updated_at = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return True
+
+    return (now - updated_at) > timedelta(minutes=3)
+
+
 class CodexFloatingUI:
     def __init__(self):
         self.root = tk.Tk()
@@ -149,81 +185,67 @@ class CodexFloatingUI:
         )
         self.frame.pack()
 
-        self.build_section("5H", "h5")
-        self.build_section("Weekly", "weekly")
-
-        self.footer = tk.Label(
-            self.frame,
-            text="updated: N/A",
-            bg="#111111",
-            fg="#6f6f6f",
-            font=("Ubuntu Mono", 8),
-            anchor="w",
-            justify="left",
-        )
-        self.footer.pack(fill="x", pady=(3, 0))
+        self.build_section("5h", "h5")
+        self.build_section("7d", "weekly")
 
     def build_section(self, name, attr_prefix):
         container = tk.Frame(self.frame, bg="#111111")
-        container.pack(fill="x", pady=(0, 5))
-
-        # 第一行：名称 + 百分比
-        top_row = tk.Frame(container, bg="#111111")
-        top_row.pack(fill="x")
+        container.pack(fill="x", pady=(0, 4))
 
         label = tk.Label(
-            top_row,
+            container,
             text=name,
             bg="#111111",
             fg="#b0b0b0",
-            font=("Ubuntu Mono", 10),
+            font=("Ubuntu Mono", 10, "bold"),
+            width=2,
             anchor="w",
         )
-        label.pack(side="left")
+        label.pack(side="left", padx=(0, 4))
 
-        value = tk.Label(
-            top_row,
-            text="N/A",
-            bg="#111111",
-            fg="#ffffff",
-            font=("Ubuntu Mono", 10, "bold"),
-            anchor="e",
-        )
-        value.pack(side="right")
+        bar_group = tk.Frame(container, bg="#111111")
+        bar_group.pack(side="left", padx=(0, 4), pady=(2, 0))
 
-        # 第二行：额度进度条
         bar_canvas = tk.Canvas(
-            container,
+            bar_group,
             width=BAR_WIDTH,
             height=BAR_HEIGHT,
             bg="#111111",
             highlightthickness=0,
             bd=0,
         )
-        # fill="x" 保证进度条右侧和百分比右侧对齐
-        bar_canvas.pack(fill="x", pady=(3, 0))
+        bar_canvas.pack(fill="x")
 
-        # 第三行：时间进度条
         time_bar_canvas = tk.Canvas(
-            container,
+            bar_group,
             width=BAR_WIDTH,
             height=TIME_BAR_HEIGHT,
             bg="#111111",
             highlightthickness=0,
             bd=0,
         )
-        time_bar_canvas.pack(fill="x", pady=(0, 1))
+        time_bar_canvas.pack(fill="x", pady=(0, 0))
 
-        # 第四行：reset
+        value = tk.Label(
+            container,
+            text="N/A",
+            bg="#111111",
+            fg="#ffffff",
+            font=("Ubuntu Mono", 10, "bold"),
+            width=4,
+            anchor="e",
+        )
+        value.pack(side="left")
+
         reset = tk.Label(
             container,
-            text="reset N/A",
+            text="N/A",
             bg="#111111",
             fg="#8a8a8a",
             font=("Ubuntu Mono", 8),
             anchor="w",
         )
-        reset.pack(fill="x")
+        reset.pack(side="left", padx=(4, 0))
 
         setattr(self, f"{attr_prefix}_container", container)
         setattr(self, f"{attr_prefix}_label", label)
@@ -288,7 +310,7 @@ class CodexFloatingUI:
             return "#f0b35a"   # orange
         return "#5aa9ff"       # blue
 
-    def draw_progress_bar(self, canvas, left_percent):
+    def draw_progress_bar(self, canvas, left_percent, stale=False):
         canvas.delete("all")
 
         # 使用实际 canvas 宽度，保证右侧和百分比右侧对齐
@@ -302,8 +324,8 @@ class CodexFloatingUI:
             0,
             width,
             height,
-            fill="#262626",
-            outline="#262626",
+            fill="#3a1f1f" if stale else "#262626",
+            outline="#3a1f1f" if stale else "#262626",
         )
 
         if left_percent is None:
@@ -316,7 +338,7 @@ class CodexFloatingUI:
 
         left_percent = max(0, min(100, left_percent))
         fill_width = int((left_percent / 100) * width)
-        fill_color = self.color_by_left(left_percent)
+        fill_color = "#ff6b6b" if stale else self.color_by_left(left_percent)
 
         if fill_width > 0:
             canvas.create_rectangle(
@@ -328,7 +350,7 @@ class CodexFloatingUI:
                 outline=fill_color,
             )
 
-    def draw_time_bar(self, canvas, remaining_percent):
+    def draw_time_bar(self, canvas, remaining_percent, stale=False):
         canvas.delete("all")
 
         width = max(canvas.winfo_width(), BAR_WIDTH)
@@ -340,8 +362,8 @@ class CodexFloatingUI:
             0,
             width,
             height,
-            fill="#1f1f1f",
-            outline="#1f1f1f",
+            fill="#3a1f1f" if stale else "#1f1f1f",
+            outline="#3a1f1f" if stale else "#1f1f1f",
         )
 
         if remaining_percent is None:
@@ -361,8 +383,8 @@ class CodexFloatingUI:
                 0,
                 fill_width,
                 height,
-                fill="#7a7a7a",
-                outline="#7a7a7a",
+                fill="#ff6b6b" if stale else "#7a7a7a",
+                outline="#ff6b6b" if stale else "#7a7a7a",
             )
 
     def format_time(self, timestamp: str) -> str:
@@ -375,51 +397,61 @@ class CodexFloatingUI:
         except Exception:
             return f"updated: {timestamp}"
 
-    def update_section(self, prefix, left_value, reset_text):
+    def update_section(self, prefix, left_value, reset_text, stale=False):
         value_label = getattr(self, f"{prefix}_value")
         bar_canvas = getattr(self, f"{prefix}_bar")
         time_bar_canvas = getattr(self, f"{prefix}_time_bar")
         reset_label = getattr(self, f"{prefix}_reset")
 
         if left_value is None:
-            value_label.config(text="N/A", fg="#ffcc66")
-            reset_label.config(text="reset N/A")
-            self.draw_progress_bar(bar_canvas, None)
-            self.draw_time_bar(time_bar_canvas, None)
+            value_label.config(text="N/A", fg="#ff6b6b" if stale else "#ffcc66")
+            reset_label.config(text="N/A")
+            self.draw_progress_bar(bar_canvas, None, stale=stale)
+            self.draw_time_bar(time_bar_canvas, None, stale=stale)
             return
 
         try:
             left_value = int(left_value)
         except Exception:
-            value_label.config(text="N/A", fg="#ffcc66")
-            reset_label.config(text="reset N/A")
-            self.draw_progress_bar(bar_canvas, None)
-            self.draw_time_bar(time_bar_canvas, None)
+            value_label.config(text="N/A", fg="#ff6b6b" if stale else "#ffcc66")
+            reset_label.config(text="N/A")
+            self.draw_progress_bar(bar_canvas, None, stale=stale)
+            self.draw_time_bar(time_bar_canvas, None, stale=stale)
             return
 
         value_label.config(
             text=f"{left_value}%",
-            fg=self.color_by_left(left_value),
+            fg="#ff6b6b" if stale else self.color_by_left(left_value),
         )
 
-        reset_label.config(text=f"reset {reset_text}")
+        reset_label.config(text=format_reset_text(prefix, reset_text))
 
         # 等布局完成后再绘制，确保 canvas 宽度正确
-        self.root.after(10, lambda: self.draw_progress_bar(bar_canvas, left_value))
+        self.root.after(
+            10,
+            lambda: self.draw_progress_bar(bar_canvas, left_value, stale=stale),
+        )
         time_percent = time_remaining_percent(reset_text, TIME_WINDOWS.get(prefix, 0))
-        self.root.after(10, lambda: self.draw_time_bar(time_bar_canvas, time_percent))
+        self.root.after(
+            10,
+            lambda: self.draw_time_bar(time_bar_canvas, time_percent, stale=stale),
+        )
 
     def update_ui(self):
         data, error = self.read_status()
 
         if error:
-            self.update_section("h5", None, "N/A")
-            self.update_section("weekly", None, "N/A")
-            self.footer.config(text=error)
+            self.update_section("h5", None, "N/A", stale=True)
+            self.update_section("weekly", None, "N/A", stale=True)
         else:
-            self.update_section("h5", data["h5_left"], data["h5_reset"])
-            self.update_section("weekly", data["weekly_left"], data["weekly_reset"])
-            self.footer.config(text=self.format_time(data["timestamp"]))
+            stale = status_is_stale(data["timestamp"])
+            self.update_section("h5", data["h5_left"], data["h5_reset"], stale=stale)
+            self.update_section(
+                "weekly",
+                data["weekly_left"],
+                data["weekly_reset"],
+                stale=stale,
+            )
 
         self.root.after(REFRESH_MS, self.update_ui)
 
