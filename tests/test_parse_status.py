@@ -1,6 +1,6 @@
 import unittest
 
-from codex_tmux_status_watch import parse_status
+from codex_tmux_status_watch import parse_status, status_needs_limit_refresh
 
 
 class ParseStatusTest(unittest.TestCase):
@@ -24,6 +24,23 @@ class ParseStatusTest(unittest.TestCase):
         self.assertEqual(status["limit_5h_reset"], "20:53")
         self.assertEqual(status["weekly_left_percent"], 92)
         self.assertEqual(status["weekly_reset"], "10:53 on 7 Jul")
+
+    def test_detects_status_limit_refresh_request(self):
+        text = """
+│  Limits:               refresh requested; run /status again shortly. │
+"""
+
+        self.assertTrue(status_needs_limit_refresh(text))
+
+    def test_real_limits_do_not_need_refresh(self):
+        text = """
+│  5h limit:                    [████████████████████] 100% left           │
+│                               (resets 13:43)                             │
+│  Weekly limit:                [████████████░░░░░░░░] 58% left            │
+│                               (resets 10:53 on 7 Jul)                    │
+"""
+
+        self.assertFalse(status_needs_limit_refresh(text))
 
 
 if __name__ == "__main__":

@@ -156,6 +156,11 @@ def clean_line(line: str) -> str:
     return line
 
 
+def status_needs_limit_refresh(text: str) -> bool:
+    clean = strip_ansi(text).lower()
+    return "limits:" in clean and "refresh requested" in clean
+
+
 def parse_status(text: str) -> dict:
     """
     从 Codex /status 屏幕中提取：
@@ -403,6 +408,12 @@ def main():
             time.sleep(args.wait_after_status)
 
             screen_text = capture_pane(args.session, args.lines)
+
+            if status_needs_limit_refresh(screen_text):
+                time.sleep(6)
+                send_status(args.session, double_enter=double_enter)
+                time.sleep(args.wait_after_status)
+                screen_text = capture_pane(args.session, args.lines)
 
             status = parse_status(screen_text)
 
