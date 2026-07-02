@@ -149,33 +149,6 @@ class CodexFloatingUI:
         )
         self.frame.pack()
 
-        # Header
-        self.header = tk.Frame(self.frame, bg="#111111")
-        self.header.pack(fill="x")
-
-        self.title_label = tk.Label(
-            self.header,
-            text="Codex Usage",
-            bg="#111111",
-            fg="#f5f5f5",
-            font=("Ubuntu Mono", 10, "bold"),
-        )
-        self.title_label.pack(side="left")
-
-        self.close_label = tk.Label(
-            self.header,
-            text="×",
-            bg="#111111",
-            fg="#9a9a9a",
-            font=("Ubuntu Mono", 11, "bold"),
-            cursor="hand2",
-            padx=4,
-        )
-        self.close_label.pack(side="right")
-        self.close_label.bind("<Button-1>", lambda e: self.root.destroy())
-
-        tk.Label(self.frame, text="", bg="#111111", height=1).pack()
-
         self.build_section("5H", "h5")
         self.build_section("Weekly", "weekly")
 
@@ -260,32 +233,18 @@ class CodexFloatingUI:
         setattr(self, f"{attr_prefix}_reset", reset)
 
     def bind_drag_events(self):
-        widgets = [
-            self.frame,
-            self.header,
-            self.title_label,
-            self.footer,
-            self.h5_container,
-            self.h5_label,
-            self.h5_value,
-            self.h5_bar,
-            self.h5_time_bar,
-            self.h5_reset,
-            self.weekly_container,
-            self.weekly_label,
-            self.weekly_value,
-            self.weekly_bar,
-            self.weekly_time_bar,
-            self.weekly_reset,
-        ]
+        self.bind_drag_recursive(self.frame)
 
-        for widget in widgets:
-            widget.bind("<ButtonPress-1>", self.start_drag)
-            widget.bind("<B1-Motion>", self.drag)
+    def bind_drag_recursive(self, widget):
+        widget.bind("<ButtonPress-1>", self.start_drag)
+        widget.bind("<B1-Motion>", self.drag)
+
+        for child in widget.winfo_children():
+            self.bind_drag_recursive(child)
 
     def start_drag(self, event):
-        self.drag_x = event.x
-        self.drag_y = event.y
+        self.drag_x = self.root.winfo_pointerx() - self.root.winfo_x()
+        self.drag_y = self.root.winfo_pointery() - self.root.winfo_y()
 
     def drag(self, event):
         x = self.root.winfo_pointerx() - self.drag_x
