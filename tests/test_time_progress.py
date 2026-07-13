@@ -3,7 +3,6 @@ from datetime import datetime
 
 from codex_float_ui import (
     format_reset_text,
-    quota_row_is_available,
     snap_position,
     status_is_stale,
     time_remaining_percent,
@@ -11,17 +10,6 @@ from codex_float_ui import (
 
 
 class TimeRemainingPercentTest(unittest.TestCase):
-    def test_5h_progress_uses_remaining_time_until_reset(self):
-        now = datetime(2026, 6, 18, 12, 0, 0)
-
-        self.assertEqual(time_remaining_percent("2:30 PM", 5 * 60, now), 50)
-
-
-    def test_5h_progress_represents_remaining_time_not_elapsed_time(self):
-        now = datetime(2026, 6, 18, 12, 0, 0)
-
-        self.assertEqual(time_remaining_percent("1:00 PM", 5 * 60, now), 20)
-
     def test_weekly_progress_uses_remaining_time_until_reset(self):
         now = datetime(2026, 6, 18, 12, 0, 0)
 
@@ -31,6 +19,11 @@ class TimeRemainingPercentTest(unittest.TestCase):
         now = datetime(2026, 6, 21, 22, 4, 0)
 
         self.assertEqual(time_remaining_percent("10:04 on 25 Jun", 7 * 24 * 60, now), 50)
+
+    def test_weekly_progress_floors_nearly_full_window(self):
+        now = datetime(2026, 7, 13, 20, 57, 53)
+
+        self.assertEqual(time_remaining_percent("20:56 on 20 Jul", 7 * 24 * 60, now), 99)
 
     def test_unparseable_reset_has_no_progress(self):
         now = datetime(2026, 6, 18, 12, 0, 0)
@@ -47,10 +40,15 @@ class TimeRemainingPercentTest(unittest.TestCase):
 
         self.assertEqual(format_reset_text("weekly", "10:53 on 7 Jul", now), "10:53")
 
-    def test_5h_reset_keeps_original_time_text(self):
+    def test_spark_reset_shows_month_day_when_not_today(self):
         now = datetime(2026, 7, 2, 8, 0, 0)
 
-        self.assertEqual(format_reset_text("h5", "13:43", now), "13:43")
+        self.assertEqual(format_reset_text("spark", "10:53 on 7 Jul", now), "7.7")
+
+    def test_spark_reset_shows_time_when_today(self):
+        now = datetime(2026, 7, 7, 8, 0, 0)
+
+        self.assertEqual(format_reset_text("spark", "10:53 on 7 Jul", now), "10:53")
 
     def test_status_is_stale_after_more_than_three_minutes(self):
         now = datetime(2026, 7, 2, 8, 4, 1)
@@ -66,12 +64,6 @@ class TimeRemainingPercentTest(unittest.TestCase):
         now = datetime(2026, 7, 2, 8, 4, 0)
 
         self.assertTrue(status_is_stale("bad timestamp", now))
-
-    def test_quota_row_is_hidden_when_left_percent_is_missing(self):
-        self.assertFalse(quota_row_is_available(None))
-
-    def test_quota_row_is_visible_when_left_percent_is_zero(self):
-        self.assertTrue(quota_row_is_available(0))
 
     def test_snap_position_snaps_to_top_edge(self):
         self.assertEqual(

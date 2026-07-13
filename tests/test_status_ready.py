@@ -21,7 +21,6 @@ class StatusReadyTest(unittest.TestCase):
     def test_status_with_no_quota_values_is_not_ready(self):
         path = self.write_status({
             "status": {
-                "limit_5h_left_percent": None,
                 "weekly_left_percent": None,
             }
         })
@@ -31,7 +30,6 @@ class StatusReadyTest(unittest.TestCase):
     def test_status_with_quota_values_is_ready(self):
         path = self.write_status({
             "status": {
-                "limit_5h_left_percent": 42,
                 "weekly_left_percent": 80,
             }
         })
@@ -41,7 +39,6 @@ class StatusReadyTest(unittest.TestCase):
     def test_status_with_weekly_only_is_ready(self):
         path = self.write_status({
             "status": {
-                "limit_5h_left_percent": None,
                 "weekly_left_percent": 100,
             }
         })

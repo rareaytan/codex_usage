@@ -3,6 +3,7 @@ import json
 import os
 import re
 import tkinter as tk
+import tkinter.font as tkfont
 from datetime import datetime, timedelta
 
 
@@ -10,14 +11,15 @@ JSON_PATH = "/tmp/codex_status.json"
 REFRESH_MS = 5000
 
 BAR_WIDTH = 310
-BAR_HEIGHT = 8
+BAR_HEIGHT = 7
 TIME_BAR_HEIGHT = 3
 SNAP_DISTANCE = 24
-H5_WINDOW_MINUTES = 5 * 60
 WEEKLY_WINDOW_MINUTES = 7 * 24 * 60
+SEGMENTS = 7         # 周进度条分块数
+SEG_GAP = 6          # 块间间距 (px)
 TIME_WINDOWS = {
-    "h5": H5_WINDOW_MINUTES,
     "weekly": WEEKLY_WINDOW_MINUTES,
+    "spark": WEEKLY_WINDOW_MINUTES,
 }
 
 
@@ -103,7 +105,7 @@ def time_remaining_percent(
         return None
 
     remaining_ratio = remaining_minutes / window_minutes
-    remaining_percent = round(max(0, min(1, remaining_ratio)) * 100)
+    remaining_percent = int(max(0, min(1, remaining_ratio)) * 100)
     return remaining_percent
 
 
@@ -115,7 +117,7 @@ def format_reset_text(
     if not reset_text or reset_text == "N/A":
         return "N/A"
 
-    if prefix != "weekly":
+    if prefix not in ("weekly", "spark"):
         return reset_text
 
     if now is None:
@@ -141,10 +143,6 @@ def status_is_stale(timestamp: str, now: datetime | None = None) -> bool:
         return True
 
     return (now - updated_at) > timedelta(minutes=3)
-
-
-def quota_row_is_available(left_percent) -> bool:
-    return left_percent is not None
 
 
 def snap_position(
@@ -183,7 +181,7 @@ class CodexFloatingUI:
 
         # 悬浮、半透明、无边框
         self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.94)
+        self.root.attributes("-alpha", 1.0)
         self.root.overrideredirect(True)
 
         self.drag_x = 0
@@ -191,10 +189,25 @@ class CodexFloatingUI:
         self.drag_start_x = 0
         self.drag_start_y = 0
 
+        self.setup_fonts()
         self.build_ui()
         self.position_window()
         self.bind_drag_events()
         self.update_ui()
+
+    def setup_fonts(self):
+        default_font = tkfont.nametofont("TkDefaultFont")
+        default_size = default_font.cget("size")
+        family = "Noto Sans"
+
+        self.ui_font = default_font.copy()
+        self.ui_font.configure(family=family, size=default_size)
+
+        self.bold_font = default_font.copy()
+        self.bold_font.configure(family=family, size=default_size, weight="bold")
+
+        self.small_font = default_font.copy()
+        self.small_font.configure(family=family, size=max(default_size - 2, 7))
 
     def position_window(self):
         self.root.update_idletasks()
@@ -215,32 +228,32 @@ class CodexFloatingUI:
             self.root,
             bg="#111111",
             padx=11,
-            pady=5,
+            pady=3,
             highlightthickness=1,
             highlightbackground="#2c2c2c",
         )
         self.frame.pack()
 
-        self.build_section("5h", "h5")
-        self.build_section("7d", "weekly")
+        self.build_section("7days", "weekly")
+        self.build_section("5.3Spark", "spark")
 
     def build_section(self, name, attr_prefix):
         container = tk.Frame(self.frame, bg="#111111")
-        container.pack(fill="x", pady=(0, 2))
+        container.pack(fill="x", pady=(0, 1))
 
         label = tk.Label(
             container,
             text=name,
             bg="#111111",
             fg="#b0b0b0",
-            font=("Ubuntu Mono", 10, "bold"),
-            width=2,
+            font=self.bold_font,
+            width=8,
             anchor="w",
         )
         label.pack(side="left", padx=(0, 4))
 
         bar_group = tk.Frame(container, bg="#111111")
-        bar_group.pack(side="left", padx=(0, 4), pady=(1, 0))
+        bar_group.pack(side="left", padx=(0, 4), pady=(0, 0))
 
         bar_canvas = tk.Canvas(
             bar_group,
@@ -267,7 +280,7 @@ class CodexFloatingUI:
             text="N/A",
             bg="#111111",
             fg="#ffffff",
-            font=("Ubuntu Mono", 10, "bold"),
+            font=self.bold_font,
             width=4,
             anchor="e",
         )
@@ -278,7 +291,7 @@ class CodexFloatingUI:
             text="N/A",
             bg="#111111",
             fg="#8a8a8a",
-            font=("Ubuntu Mono", 8),
+            font=self.small_font,
             anchor="w",
         )
         reset.pack(side="left", padx=(4, 0))
@@ -289,16 +302,6 @@ class CodexFloatingUI:
         setattr(self, f"{attr_prefix}_bar", bar_canvas)
         setattr(self, f"{attr_prefix}_time_bar", time_bar_canvas)
         setattr(self, f"{attr_prefix}_reset", reset)
-
-    def set_section_visible(self, prefix, visible):
-        container = getattr(self, f"{prefix}_container")
-        is_mapped = bool(container.winfo_ismapped())
-
-        if visible and not is_mapped:
-            before = getattr(self, "weekly_container", None) if prefix == "h5" else None
-            container.pack(fill="x", pady=(0, 2), before=before)
-        elif not visible and is_mapped:
-            container.pack_forget()
 
     def bind_drag_events(self):
         self.bind_drag_recursive(self.frame)
@@ -362,34 +365,29 @@ class CodexFloatingUI:
 
             return {
                 "timestamp": timestamp,
-                "h5_left": status.get("limit_5h_left_percent"),
-                "h5_reset": status.get("limit_5h_reset") or "N/A",
                 "weekly_left": status.get("weekly_left_percent"),
                 "weekly_reset": status.get("weekly_reset") or "N/A",
+                "spark_weekly_left": status.get("spark_weekly_left_percent"),
+                "spark_weekly_reset": status.get("spark_weekly_reset") or "N/A",
             }, None
 
         except Exception as e:
             return None, f"Read error:\n{e}"
 
-    def color_by_left(self, left_percent):
+    def quota_vs_time_color(self, left_percent, time_percent):
+        """橙色：额度消耗快于时间流逝（left% < time%）；
+        蓝色：额度消耗慢于时间流逝（left% >= time%）。"""
         if left_percent is None:
             return "#5a5a5a"
 
-        try:
-            left_percent = int(left_percent)
-        except Exception:
-            return "#5a5a5a"
+        if time_percent is not None and int(left_percent) < int(time_percent):
+            return "#f0b35a"  # orange
+        return "#5aa9ff"      # blue
 
-        if left_percent <= 10:
-            return "#ff6b6b"   # red
-        if left_percent <= 30:
-            return "#f0b35a"   # orange
-        return "#5aa9ff"       # blue
-
-    def draw_progress_bar(self, canvas, left_percent, stale=False):
+    def draw_progress_bar(self, canvas, left_percent, time_percent=None, stale=False):
+        """标准进度条。颜色由 quota vs time 决定。"""
         canvas.delete("all")
 
-        # 使用实际 canvas 宽度，保证右侧和百分比右侧对齐
         width = max(canvas.winfo_width(), BAR_WIDTH)
         height = BAR_HEIGHT
         pad = 1
@@ -414,7 +412,7 @@ class CodexFloatingUI:
 
         left_percent = max(0, min(100, left_percent))
         fill_width = int((left_percent / 100) * width)
-        fill_color = "#ff6b6b" if stale else self.color_by_left(left_percent)
+        fill_color = "#ff6b6b" if stale else self.quota_vs_time_color(left_percent, time_percent)
 
         if fill_width > 0:
             canvas.create_rectangle(
@@ -425,6 +423,53 @@ class CodexFloatingUI:
                 fill=fill_color,
                 outline=fill_color,
             )
+
+    def draw_weekly_segmented_bar(self, canvas, left_percent, time_percent, stale=False):
+        """Weekly 进度条拆分为 7 个 Daily 块，相邻日交替底色，颜色由 quota vs time 决定。"""
+        canvas.delete("all")
+
+        width = max(canvas.winfo_width(), BAR_WIDTH)
+        height = BAR_HEIGHT
+        seg_width = (width - (SEGMENTS - 1) * SEG_GAP) / SEGMENTS
+
+        if left_percent is not None:
+            try:
+                left_pct = max(0, min(100, int(left_percent)))
+            except Exception:
+                left_pct = 0
+            total_fill_width = (left_pct / 100) * width
+        else:
+            total_fill_width = 0
+
+        fill_color = "#ff6b6b" if stale else self.quota_vs_time_color(left_percent, time_percent)
+
+        for seg in range(SEGMENTS):
+            x0 = seg * (seg_width + SEG_GAP)
+            x1 = x0 + seg_width
+
+            # 相邻日交替背景色
+            if stale:
+                bg = "#3a1f1f"
+            else:
+                bg = "#2e2e2e" if seg % 2 == 0 else "#1e1e1e"
+            canvas.create_rectangle(x0, 0, x1, height, fill=bg, outline=bg)
+
+            # 该 segment 内的填充（与时间条对齐，无偏移）
+            fill_start = max(seg * (seg_width + SEG_GAP), 0)
+            fill_end = min((seg + 1) * (seg_width + SEG_GAP), total_fill_width)
+
+            if fill_end > fill_start:
+                canvas.create_rectangle(
+                    fill_start, 1, fill_end, height - 1,
+                    fill=fill_color, outline=fill_color,
+                )
+
+        # 每段之间画一条垂直暗线，强化分块感
+        for seg in range(1, SEGMENTS):
+            x = seg * (seg_width + SEG_GAP)
+            canvas.create_line(x, 0, x, height, fill="#0a0a0a", width=1)
+
+
 
     def draw_time_bar(self, canvas, remaining_percent, stale=False):
         canvas.delete("all")
@@ -463,6 +508,51 @@ class CodexFloatingUI:
                 outline="#ff6b6b" if stale else "#7a7a7a",
             )
 
+    def draw_segmented_time_bar(self, canvas, remaining_percent, stale=False):
+        """时间进度条也拆分为 7 段（交替底色，与进度条对齐）。"""
+        canvas.delete("all")
+
+        width = max(canvas.winfo_width(), BAR_WIDTH)
+        height = TIME_BAR_HEIGHT
+        seg_width = (width - (SEGMENTS - 1) * SEG_GAP) / SEGMENTS
+
+        if remaining_percent is not None:
+            try:
+                pct = max(0, min(100, int(remaining_percent)))
+            except Exception:
+                pct = 0
+            total_fill_width = (pct / 100) * width
+        else:
+            total_fill_width = 0
+
+        for seg in range(SEGMENTS):
+            x0 = seg * (seg_width + SEG_GAP)
+            x1 = x0 + seg_width
+
+            if stale:
+                bg = "#3a1f1f"
+            else:
+                bg = "#2e2e2e" if seg % 2 == 0 else "#1e1e1e"
+            canvas.create_rectangle(x0, 0, x1, height, fill=bg, outline=bg)
+
+            seg_start = seg * (seg_width + SEG_GAP)
+            seg_end = (seg + 1) * (seg_width + SEG_GAP)
+
+            fill_start = max(seg_start, 0)
+            fill_end = min(seg_end, total_fill_width)
+
+            if fill_end > fill_start:
+                canvas.create_rectangle(
+                    fill_start, 0, fill_end, height,
+                    fill="#ff6b6b" if stale else "#7a7a7a",
+                    outline="#ff6b6b" if stale else "#7a7a7a",
+                )
+
+        # 每段之间画一条垂直暗线，与进度条对齐
+        for seg in range(1, SEGMENTS):
+            x = seg * (seg_width + SEG_GAP)
+            canvas.create_line(x, 0, x, height, fill="#0a0a0a", width=1)
+
     def format_time(self, timestamp: str) -> str:
         if not timestamp:
             return "updated: N/A"
@@ -478,12 +568,20 @@ class CodexFloatingUI:
         bar_canvas = getattr(self, f"{prefix}_bar")
         time_bar_canvas = getattr(self, f"{prefix}_time_bar")
         reset_label = getattr(self, f"{prefix}_reset")
+        is_weekly = prefix in ("weekly", "spark")
 
         if left_value is None:
             value_label.config(text="N/A", fg="#ff6b6b" if stale else "#ffcc66")
             reset_label.config(text="N/A")
-            self.draw_progress_bar(bar_canvas, None, stale=stale)
-            self.draw_time_bar(time_bar_canvas, None, stale=stale)
+            draw_fn = self.draw_weekly_segmented_bar if is_weekly else self.draw_progress_bar
+            self.root.after(
+                10,
+                lambda: draw_fn(bar_canvas, None, None, stale=stale),
+            )
+            self.root.after(
+                10,
+                lambda: self.draw_segmented_time_bar(time_bar_canvas, None, stale=stale) if is_weekly else self.draw_time_bar(time_bar_canvas, None, stale=stale),
+            )
             return
 
         try:
@@ -491,46 +589,70 @@ class CodexFloatingUI:
         except Exception:
             value_label.config(text="N/A", fg="#ff6b6b" if stale else "#ffcc66")
             reset_label.config(text="N/A")
-            self.draw_progress_bar(bar_canvas, None, stale=stale)
-            self.draw_time_bar(time_bar_canvas, None, stale=stale)
+            draw_fn = self.draw_weekly_segmented_bar if is_weekly else self.draw_progress_bar
+            self.root.after(
+                10,
+                lambda: draw_fn(bar_canvas, None, None, stale=stale),
+            )
+            self.root.after(
+                10,
+                lambda: self.draw_segmented_time_bar(time_bar_canvas, None, stale=stale) if is_weekly else self.draw_time_bar(time_bar_canvas, None, stale=stale),
+            )
             return
 
         value_label.config(
             text=f"{left_value}%",
-            fg="#ff6b6b" if stale else self.color_by_left(left_value),
+            fg="#ff6b6b" if stale else self.quota_vs_time_color(left_value, None),
         )
 
         reset_label.config(text=format_reset_text(prefix, reset_text))
 
-        # 等布局完成后再绘制，确保 canvas 宽度正确
-        self.root.after(
-            10,
-            lambda: self.draw_progress_bar(bar_canvas, left_value, stale=stale),
-        )
         time_percent = time_remaining_percent(reset_text, TIME_WINDOWS.get(prefix, 0))
-        self.root.after(
-            10,
-            lambda: self.draw_time_bar(time_bar_canvas, time_percent, stale=stale),
-        )
+
+        if is_weekly:
+            self.root.after(
+                10,
+                lambda: self.draw_weekly_segmented_bar(
+                    bar_canvas, left_value, time_percent, stale=stale
+                ),
+            )
+            self.root.after(
+                10,
+                lambda: self.draw_segmented_time_bar(
+                    time_bar_canvas, time_percent, stale=stale
+                ),
+            )
+        else:
+            self.root.after(
+                10,
+                lambda: self.draw_progress_bar(
+                    bar_canvas, left_value, time_percent, stale=stale
+                ),
+            )
+            self.root.after(
+                10,
+                lambda: self.draw_time_bar(time_bar_canvas, time_percent, stale=stale),
+            )
 
     def update_ui(self):
         data, error = self.read_status()
 
         if error:
-            self.set_section_visible("h5", True)
-            self.set_section_visible("weekly", True)
-            self.update_section("h5", None, "N/A", stale=True)
             self.update_section("weekly", None, "N/A", stale=True)
+            self.update_section("spark", None, "N/A", stale=True)
         else:
             stale = status_is_stale(data["timestamp"])
-            show_h5 = quota_row_is_available(data["h5_left"])
-            self.set_section_visible("h5", show_h5)
-            if show_h5:
-                self.update_section("h5", data["h5_left"], data["h5_reset"], stale=stale)
             self.update_section(
                 "weekly",
                 data["weekly_left"],
                 data["weekly_reset"],
+                stale=stale,
+            )
+
+            self.update_section(
+                "spark",
+                data["spark_weekly_left"],
+                data["spark_weekly_reset"],
                 stale=stale,
             )
 
