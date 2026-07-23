@@ -2,6 +2,7 @@ import unittest
 from datetime import datetime
 
 from codex_float_ui import (
+    current_day_quota_threshold,
     format_reset_text,
     snap_position,
     status_is_stale,
@@ -30,10 +31,21 @@ class TimeRemainingPercentTest(unittest.TestCase):
 
         self.assertIsNone(time_remaining_percent("N/A", 5 * 60, now))
 
+    def test_current_day_quota_threshold_uses_day_bucket_floor(self):
+        self.assertAlmostEqual(current_day_quota_threshold(73), 500 / 7)
+
+    def test_current_day_quota_threshold_does_not_warn_at_precise_time_point(self):
+        threshold = current_day_quota_threshold(73)
+
+        self.assertGreaterEqual(73, threshold)
+
+    def test_current_day_quota_threshold_caps_full_window_to_first_day_floor(self):
+        self.assertAlmostEqual(current_day_quota_threshold(100), 600 / 7)
+
     def test_weekly_reset_shows_month_day_when_not_today(self):
         now = datetime(2026, 7, 2, 8, 0, 0)
 
-        self.assertEqual(format_reset_text("weekly", "10:53 on 7 Jul", now), "7.7")
+        self.assertEqual(format_reset_text("weekly", "10:53 on 7 Jul", now), "7.7 10:53")
 
     def test_weekly_reset_shows_time_when_today(self):
         now = datetime(2026, 7, 7, 8, 0, 0)
@@ -43,7 +55,7 @@ class TimeRemainingPercentTest(unittest.TestCase):
     def test_spark_reset_shows_month_day_when_not_today(self):
         now = datetime(2026, 7, 2, 8, 0, 0)
 
-        self.assertEqual(format_reset_text("spark", "10:53 on 7 Jul", now), "7.7")
+        self.assertEqual(format_reset_text("spark", "10:53 on 7 Jul", now), "7.7 10:53")
 
     def test_spark_reset_shows_time_when_today(self):
         now = datetime(2026, 7, 7, 8, 0, 0)

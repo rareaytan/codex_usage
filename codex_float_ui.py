@@ -11,12 +11,12 @@ JSON_PATH = "/tmp/codex_status.json"
 REFRESH_MS = 5000
 
 BAR_WIDTH = 310
-BAR_HEIGHT = 7
-TIME_BAR_HEIGHT = 3
+BAR_HEIGHT = 6
+TIME_BAR_HEIGHT = 4
 SNAP_DISTANCE = 24
 WEEKLY_WINDOW_MINUTES = 7 * 24 * 60
 SEGMENTS = 7         # 周进度条分块数
-SEG_GAP = 6          # 块间间距 (px)
+SEG_GAP = 1          # 块间间距 (px)
 TIME_WINDOWS = {
     "weekly": WEEKLY_WINDOW_MINUTES,
     "spark": WEEKLY_WINDOW_MINUTES,
@@ -130,7 +130,7 @@ def format_reset_text(
     if reset_dt.date() == now.date():
         return reset_dt.strftime("%H:%M")
 
-    return f"{reset_dt.month}.{reset_dt.day}"
+    return f"{reset_dt.month}.{reset_dt.day} {reset_dt.strftime('%H:%M')}"
 
 
 def status_is_stale(timestamp: str, now: datetime | None = None) -> bool:
@@ -143,6 +143,21 @@ def status_is_stale(timestamp: str, now: datetime | None = None) -> bool:
         return True
 
     return (now - updated_at) > timedelta(minutes=3)
+
+
+def current_day_quota_threshold(time_percent, segments: int = SEGMENTS):
+    if time_percent is None or segments <= 0:
+        return None
+
+    try:
+        pct = float(time_percent)
+    except Exception:
+        return None
+
+    pct = max(0, min(100, pct))
+    segment_percent = 100 / segments
+    current_segment = min(segments - 1, int(pct / segment_percent))
+    return current_segment * segment_percent
 
 
 def snap_position(
@@ -235,7 +250,6 @@ class CodexFloatingUI:
         self.frame.pack()
 
         self.build_section("7days", "weekly")
-        self.build_section("5.3Spark", "spark")
 
     def build_section(self, name, attr_prefix):
         container = tk.Frame(self.frame, bg="#111111")
@@ -375,12 +389,12 @@ class CodexFloatingUI:
             return None, f"Read error:\n{e}"
 
     def quota_vs_time_color(self, left_percent, time_percent):
-        """橙色：额度消耗快于时间流逝（left% < time%）；
-        蓝色：额度消耗慢于时间流逝（left% >= time%）。"""
+        """橙色：剩余额度低于当前日块；蓝色：仍在当前日块内。"""
         if left_percent is None:
             return "#5a5a5a"
 
-        if time_percent is not None and int(left_percent) < int(time_percent):
+        threshold = current_day_quota_threshold(time_percent)
+        if threshold is not None and int(left_percent) < threshold:
             return "#f0b35a"  # orange
         return "#5aa9ff"      # blue
 
@@ -454,9 +468,9 @@ class CodexFloatingUI:
                 bg = "#2e2e2e" if seg % 2 == 0 else "#1e1e1e"
             canvas.create_rectangle(x0, 0, x1, height, fill=bg, outline=bg)
 
-            # 该 segment 内的填充（与时间条对齐，无偏移）
-            fill_start = max(seg * (seg_width + SEG_GAP), 0)
-            fill_end = min((seg + 1) * (seg_width + SEG_GAP), total_fill_width)
+            # 只填充当前块本身，避免颜色侵入块间间距
+            fill_start = x0
+            fill_end = min(x1, total_fill_width)
 
             if fill_end > fill_start:
                 canvas.create_rectangle(
@@ -535,11 +549,8 @@ class CodexFloatingUI:
                 bg = "#2e2e2e" if seg % 2 == 0 else "#1e1e1e"
             canvas.create_rectangle(x0, 0, x1, height, fill=bg, outline=bg)
 
-            seg_start = seg * (seg_width + SEG_GAP)
-            seg_end = (seg + 1) * (seg_width + SEG_GAP)
-
-            fill_start = max(seg_start, 0)
-            fill_end = min(seg_end, total_fill_width)
+            fill_start = x0
+            fill_end = min(x1, total_fill_width)
 
             if fill_end > fill_start:
                 canvas.create_rectangle(
@@ -639,20 +650,12 @@ class CodexFloatingUI:
 
         if error:
             self.update_section("weekly", None, "N/A", stale=True)
-            self.update_section("spark", None, "N/A", stale=True)
         else:
             stale = status_is_stale(data["timestamp"])
             self.update_section(
                 "weekly",
                 data["weekly_left"],
                 data["weekly_reset"],
-                stale=stale,
-            )
-
-            self.update_section(
-                "spark",
-                data["spark_weekly_left"],
-                data["spark_weekly_reset"],
                 stale=stale,
             )
 
