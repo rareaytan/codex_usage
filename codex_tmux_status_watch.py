@@ -158,7 +158,10 @@ def clean_line(line: str) -> str:
 
 def status_needs_limit_refresh(text: str) -> bool:
     clean = strip_ansi(text).lower()
-    return "limits:" in clean and "refresh requested" in clean
+    return (
+        ("limits:" in clean and "refresh requested" in clean)
+        or ("limits may be stale" in clean and "run /status again" in clean)
+    )
 
 
 def parse_status(text: str) -> dict:

@@ -2,12 +2,34 @@ import unittest
 from datetime import datetime
 
 from codex_float_ui import (
+    BAR_WIDTH,
+    CodexFloatingUI,
+    SEGMENTS,
+    SEG_GAP,
     current_day_quota_threshold,
     format_reset_text,
     snap_position,
     status_is_stale,
     time_remaining_percent,
 )
+
+
+class FakeCanvas:
+    def __init__(self, width=BAR_WIDTH):
+        self.width = width
+        self.rectangles = []
+
+    def delete(self, tag):
+        self.rectangles.clear()
+
+    def winfo_width(self):
+        return self.width
+
+    def create_rectangle(self, *coords, **kwargs):
+        self.rectangles.append((coords, kwargs))
+
+    def create_line(self, *coords, **kwargs):
+        pass
 
 
 class TimeRemainingPercentTest(unittest.TestCase):
@@ -30,6 +52,26 @@ class TimeRemainingPercentTest(unittest.TestCase):
         now = datetime(2026, 6, 18, 12, 0, 0)
 
         self.assertIsNone(time_remaining_percent("N/A", 5 * 60, now))
+
+    def test_past_day_month_reset_has_no_remaining_progress(self):
+        now = datetime(2026, 8, 20, 16, 5, 0)
+
+        self.assertIsNone(time_remaining_percent("11:32 on 20 Aug", 7 * 24 * 60, now))
+
+    def test_segmented_quota_fill_uses_drawable_width_without_gaps(self):
+        ui = object.__new__(CodexFloatingUI)
+        ui.quota_vs_time_color = lambda left_percent, time_percent: "#5aa9ff"
+        canvas = FakeCanvas()
+
+        CodexFloatingUI.draw_weekly_segmented_bar(ui, canvas, 73, None)
+
+        filled_width = sum(
+            coords[2] - coords[0]
+            for coords, kwargs in canvas.rectangles
+            if kwargs.get("fill") == "#5aa9ff"
+        )
+        drawable_width = BAR_WIDTH - (SEGMENTS - 1) * SEG_GAP
+        self.assertAlmostEqual(filled_width, drawable_width * 0.73)
 
     def test_current_day_quota_threshold_uses_day_bucket_floor(self):
         self.assertAlmostEqual(current_day_quota_threshold(73), 500 / 7)

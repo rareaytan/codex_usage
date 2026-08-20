@@ -43,6 +43,13 @@ class ParseStatusTest(unittest.TestCase):
 
         self.assertTrue(status_needs_limit_refresh(text))
 
+    def test_detects_stale_limits_warning_as_refresh_request(self):
+        text = """
+│  Warning:                            limits may be stale - run /status again │
+"""
+
+        self.assertTrue(status_needs_limit_refresh(text))
+
     def test_real_limits_do_not_need_refresh(self):
         text = """
 │  Weekly limit:                [████████████░░░░░░░░] 58% left            │

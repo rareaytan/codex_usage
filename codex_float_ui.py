@@ -69,7 +69,7 @@ def parse_reset_datetime(reset_text: str, now: datetime | None = None):
         try:
             parsed = datetime.strptime(value, fmt)
             if not normalized.startswith(str(now.year)) and parsed <= now:
-                parsed = parsed.replace(year=now.year + 1)
+                return None
             return parsed
         except ValueError:
             pass
@@ -445,15 +445,16 @@ class CodexFloatingUI:
         width = max(canvas.winfo_width(), BAR_WIDTH)
         height = BAR_HEIGHT
         seg_width = (width - (SEGMENTS - 1) * SEG_GAP) / SEGMENTS
+        drawable_width = seg_width * SEGMENTS
 
         if left_percent is not None:
             try:
                 left_pct = max(0, min(100, int(left_percent)))
             except Exception:
                 left_pct = 0
-            total_fill_width = (left_pct / 100) * width
+            remaining_fill_width = (left_pct / 100) * drawable_width
         else:
-            total_fill_width = 0
+            remaining_fill_width = 0
 
         fill_color = "#ff6b6b" if stale else self.quota_vs_time_color(left_percent, time_percent)
 
@@ -470,7 +471,8 @@ class CodexFloatingUI:
 
             # 只填充当前块本身，避免颜色侵入块间间距
             fill_start = x0
-            fill_end = min(x1, total_fill_width)
+            fill_end = x0 + min(seg_width, max(0, remaining_fill_width))
+            remaining_fill_width -= seg_width
 
             if fill_end > fill_start:
                 canvas.create_rectangle(
@@ -529,15 +531,16 @@ class CodexFloatingUI:
         width = max(canvas.winfo_width(), BAR_WIDTH)
         height = TIME_BAR_HEIGHT
         seg_width = (width - (SEGMENTS - 1) * SEG_GAP) / SEGMENTS
+        drawable_width = seg_width * SEGMENTS
 
         if remaining_percent is not None:
             try:
                 pct = max(0, min(100, int(remaining_percent)))
             except Exception:
                 pct = 0
-            total_fill_width = (pct / 100) * width
+            remaining_fill_width = (pct / 100) * drawable_width
         else:
-            total_fill_width = 0
+            remaining_fill_width = 0
 
         for seg in range(SEGMENTS):
             x0 = seg * (seg_width + SEG_GAP)
@@ -550,7 +553,8 @@ class CodexFloatingUI:
             canvas.create_rectangle(x0, 0, x1, height, fill=bg, outline=bg)
 
             fill_start = x0
-            fill_end = min(x1, total_fill_width)
+            fill_end = x0 + min(seg_width, max(0, remaining_fill_width))
+            remaining_fill_width -= seg_width
 
             if fill_end > fill_start:
                 canvas.create_rectangle(
