@@ -9,6 +9,8 @@ import sys
 import time
 from datetime import datetime
 
+from codex_usage_history import record_sample
+
 
 DEFAULT_SESSION = "codex_quota_watch"
 
@@ -429,6 +431,12 @@ def main():
             }
 
             write_json(args.json_out, payload)
+
+            if not status_needs_limit_refresh(screen_text):
+                try:
+                    record_sample(payload)
+                except Exception as e:
+                    print(f"历史数据保存失败：{e}", file=sys.stderr)
 
             if not args.no_clear:
                 clear_screen()

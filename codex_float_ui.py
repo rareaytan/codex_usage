@@ -6,6 +6,8 @@ import tkinter as tk
 import tkinter.font as tkfont
 from datetime import datetime, timedelta
 
+from codex_usage_chart import UsageChart
+
 
 JSON_PATH = "/tmp/codex_status.json"
 REFRESH_MS = 5000
@@ -203,11 +205,13 @@ class CodexFloatingUI:
         self.drag_y = 0
         self.drag_start_x = 0
         self.drag_start_y = 0
+        self.chart = None
 
         self.setup_fonts()
         self.build_ui()
         self.position_window()
         self.bind_drag_events()
+        self.weekly_label.bind("<Double-Button-1>", self.show_chart)
         self.update_ui()
 
     def setup_fonts(self):
@@ -329,10 +333,32 @@ class CodexFloatingUI:
             self.bind_drag_recursive(child)
 
     def start_drag(self, event):
+        if self.chart is not None:
+            self.chart.close()
         self.drag_x = self.root.winfo_pointerx() - self.root.winfo_x()
         self.drag_y = self.root.winfo_pointery() - self.root.winfo_y()
         self.drag_start_x = self.root.winfo_x()
         self.drag_start_y = self.root.winfo_y()
+
+    def show_chart(self, event=None):
+        if self.chart is not None:
+            self.chart.close()
+        data, error = self.read_status()
+        self.chart = UsageChart(self.root, data.get("account", "") if data else "", self.chart_period)
+        return "break"
+
+    def chart_period(self):
+        data, error = self.read_status()
+        if error or not data:
+            return None
+        try:
+            sampled_at = datetime.strptime(data["timestamp"], "%Y-%m-%d %H:%M:%S")
+        except (KeyError, ValueError, TypeError):
+            return None
+        end = parse_reset_datetime(data["weekly_reset"], sampled_at)
+        if end is None:
+            return None
+        return end - timedelta(days=7), end
 
     def drag(self, event):
         x = self.root.winfo_pointerx() - self.drag_x
@@ -378,6 +404,7 @@ class CodexFloatingUI:
             timestamp = data.get("timestamp") or ""
 
             return {
+                "account": status.get("account") or "",
                 "timestamp": timestamp,
                 "weekly_left": status.get("weekly_left_percent"),
                 "weekly_reset": status.get("weekly_reset") or "N/A",
