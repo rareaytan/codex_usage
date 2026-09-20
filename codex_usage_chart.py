@@ -90,7 +90,7 @@ class UsageChart:
             canvas.create_text(x, bottom + 17, text=f"{when.month}.{when.day}", fill="#aaaaaa")
         if start <= now <= end:
             x = left + (now - start).total_seconds() / duration * (right - left)
-            canvas.create_line(x, top, x, bottom, fill="#777777", dash=(3, 3))
+            canvas.create_line(x, top, x, bottom, fill="#223629", width=1)
         try:
             samples = read_samples(self.account, now)
             samples = [(when, value) for when, value in samples if start <= when <= min(now, end)]
@@ -102,6 +102,8 @@ class UsageChart:
             canvas.create_text((left + right) / 2, (top + bottom) / 2,
                                text="暂无历史数据", fill="#aaaaaa")
             return
+        latest_y = bottom - samples[-1][1] / 100 * (bottom - top)
+        canvas.create_line(left, latest_y, right, latest_y, fill="#223629", width=1)
         previous = None
         for when, value in samples:
             x = left + (when - start).total_seconds() / duration * (right - left)
