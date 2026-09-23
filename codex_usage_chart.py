@@ -36,16 +36,32 @@ class UsageChart:
         self.canvas.pack(fill="both", expand=True)
         self.window.bind("<Escape>", self.close)
         self.window.bind("<FocusOut>", self.on_focus_out)
+        self.window.bind("<ButtonPress>", self.on_pointer_press)
         self.window.bind("<Destroy>", self.on_destroy)
         self.canvas.bind("<Configure>", lambda event: self.draw())
         self.window.deiconify()
         self.window.update_idletasks()
         self.window.focus_force()
+        # Make the chart behave like a popup: a click anywhere outside it is
+        # delivered here so the first outside click can dismiss the window.
+        self.window.grab_set_global()
         self.refresh()
 
     def close(self, event=None):
         if self.window.winfo_exists():
+            if self.window.grab_current() == self.window:
+                self.window.grab_release()
             self.window.destroy()
+
+    def on_pointer_press(self, event):
+        x = self.window.winfo_rootx()
+        y = self.window.winfo_rooty()
+        width = self.window.winfo_width()
+        height = self.window.winfo_height()
+        if not (x <= event.x_root < x + width and y <= event.y_root < y + height):
+            self.close()
+            return "break"
+        return None
 
     def on_destroy(self, event):
         if event.widget == self.window and self.timer is not None:
@@ -57,7 +73,7 @@ class UsageChart:
 
     def check_focus(self):
         if self.window.winfo_exists():
-            focused = self.root.focus_displayof()
+            focused = self.root.focus_get()
             if focused is None or focused.winfo_toplevel() != self.window:
                 self.close()
 

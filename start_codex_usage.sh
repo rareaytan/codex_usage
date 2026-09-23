@@ -10,13 +10,10 @@ WORKDIR="${1:-$PWD}"
 # 固定配置
 JSON_PATH="/tmp/codex_status.json"
 WATCH_LOG="/tmp/codex_status_watch.log"
-UI_LOG="/tmp/codex_float_ui.log"
 WATCH_PID="/tmp/codex_status_watch.pid"
-UI_PID="/tmp/codex_float_ui.pid"
 TMUX_SESSION="codex_quota_watch"
 
 WATCH_SCRIPT="$SCRIPT_DIR/codex_tmux_status_watch.py"
-UI_SCRIPT="$SCRIPT_DIR/codex_float_ui.py"
 READY_SCRIPT="$SCRIPT_DIR/codex_status_ready.py"
 
 echo "Starting Codex usage watcher..."
@@ -42,11 +39,6 @@ if [ ! -f "$WATCH_SCRIPT" ]; then
   exit 1
 fi
 
-if [ ! -f "$UI_SCRIPT" ]; then
-  echo "ERROR: UI script not found: $UI_SCRIPT"
-  exit 1
-fi
-
 if [ ! -f "$READY_SCRIPT" ]; then
   echo "ERROR: status ready script not found: $READY_SCRIPT"
   exit 1
@@ -61,10 +53,16 @@ for OLD_PID in $(pgrep -f "codex_float_ui.py" 2>/dev/null || true); do
   echo "Killing old UI pid: $OLD_PID"
   kill "$OLD_PID" 2>/dev/null || true
 done
+for OLD_PID in $(pgrep -f "show_codex_usage_chart.py|/codex-usage-chart" 2>/dev/null || true); do
+  if [ "$OLD_PID" != "$$" ]; then
+    echo "Killing old chart pid: $OLD_PID"
+    kill "$OLD_PID" 2>/dev/null || true
+  fi
+done
 sleep 1
 
 # 清理 PID 文件和旧 JSON
-rm -f "$WATCH_PID" "$UI_PID" "$JSON_PATH"
+rm -f "$WATCH_PID" "$JSON_PATH"
 
 # 清理旧 JSON，避免 UI 读到旧数据
 rm -f "$JSON_PATH"
@@ -104,21 +102,13 @@ if ! python3 "$READY_SCRIPT" "$JSON_PATH"; then
   echo "  cat $WATCH_LOG"
 fi
 
-# 启动悬浮 UI
-nohup python3 "$UI_SCRIPT" > "$UI_LOG" 2>&1 &
-
-FLOAT_UI_PID=$!
-echo "$FLOAT_UI_PID" > "$UI_PID"
-
 echo
 echo "Started."
 echo "Watcher PID : $WATCHER_PID"
-echo "UI PID      : $FLOAT_UI_PID"
 echo "tmux session: $TMUX_SESSION"
 echo
 echo "Logs:"
 echo "  watcher: $WATCH_LOG"
-echo "  UI     : $UI_LOG"
 echo
 echo "Attach Codex session:"
 echo "  tmux attach -t $TMUX_SESSION"

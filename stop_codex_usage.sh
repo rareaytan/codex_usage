@@ -3,7 +3,6 @@ set -euo pipefail
 
 JSON_PATH="/tmp/codex_status.json"
 WATCH_LOG="/tmp/codex_status_watch.log"
-UI_LOG="/tmp/codex_float_ui.log"
 TMUX_SESSION="codex_quota_watch"
 
 echo "Stopping Codex usage tools..."
@@ -16,6 +15,12 @@ done
 for OLD_PID in $(pgrep -f "codex_float_ui.py" 2>/dev/null || true); do
   echo "Killing old UI pid: $OLD_PID"
   kill "$OLD_PID" 2>/dev/null || true
+done
+for OLD_PID in $(pgrep -f "show_codex_usage_chart.py|/codex-usage-chart" 2>/dev/null || true); do
+  if [ "$OLD_PID" != "$$" ]; then
+    echo "Killing chart pid: $OLD_PID"
+    kill "$OLD_PID" 2>/dev/null || true
+  fi
 done
 sleep 1
 
@@ -36,4 +41,3 @@ echo
 echo "Stopped."
 echo "Logs kept:"
 echo "  $WATCH_LOG"
-echo "  $UI_LOG"

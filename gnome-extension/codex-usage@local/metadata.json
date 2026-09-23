@@ -1,0 +1,7 @@
+{
+  "name": "Codex Usage",
+  "description": "Show the remaining Codex weekly quota in the GNOME top panel",
+  "uuid": "codex-usage@local",
+  "shell-version": ["46"],
+  "version": 1
+}
