@@ -2,6 +2,8 @@
 
 在 GNOME 顶栏显示 Codex 额度和状态。
 
+`ubuntu24` 分支适用于 Ubuntu 24.04 / GNOME Shell 46，需在已登录的桌面用户会话中运行。Codex CLI 需已安装、位于 `PATH` 中并已登录账户。
+
 ![运行效果](docs/images/image.png)
 
 ## 依赖安装
@@ -38,6 +40,15 @@ Pro 账户的顶栏显示为 `codex:85% time:80%`，分别表示周剩余额度�
 
 ```bash
 ./start_codex_usage.sh
+```
+
+采集进程由 systemd 用户服务管理，关闭终端后继续运行，异常退出后自动重启。此服务不会自动开机启动，注销后需重新运行启动脚本。
+
+查看运行状态和日志：
+
+```bash
+systemctl --user status codex-usage-watcher.service
+tail -f /tmp/codex_status_watch.log
 ```
 
 停止：

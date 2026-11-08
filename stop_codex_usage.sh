@@ -4,23 +4,17 @@ set -euo pipefail
 JSON_PATH="/tmp/codex_status.json"
 WATCH_LOG="/tmp/codex_status_watch.log"
 TMUX_SESSION="codex_quota_watch"
+SERVICE="codex-usage-watcher.service"
 
 echo "Stopping Codex usage tools..."
 
-# 强制杀掉所有旧 watcher 和 UI 进程（按进程名匹配，不依赖 PID 文件）
-for OLD_PID in $(pgrep -f "codex_tmux_status_watch.py" 2>/dev/null || true); do
-  echo "Killing old watcher pid: $OLD_PID"
+# 同时停止服务和旧版脚本直接启动的进程，避免匹配到 shell 命令文本。
+systemctl --user stop "$SERVICE" 2>/dev/null || true
+PYTHON_PROCESS='^([^[:space:]]*/)?python3([.][0-9]+)?[[:space:]]+'
+PROCESS_PATTERN="${PYTHON_PROCESS}([^[:space:]]*/)?(codex_tmux_status_watch|codex_float_ui|show_codex_usage_chart)[.]py([[:space:]]|$)|^([^[:space:]]*/)?codex-usage-chart([[:space:]]|$)"
+for OLD_PID in $(pgrep -u "$(id -u)" -f "$PROCESS_PATTERN" 2>/dev/null || true); do
+  echo "Stopping usage process: $OLD_PID"
   kill "$OLD_PID" 2>/dev/null || true
-done
-for OLD_PID in $(pgrep -f "codex_float_ui.py" 2>/dev/null || true); do
-  echo "Killing old UI pid: $OLD_PID"
-  kill "$OLD_PID" 2>/dev/null || true
-done
-for OLD_PID in $(pgrep -f "show_codex_usage_chart.py|/codex-usage-chart" 2>/dev/null || true); do
-  if [ "$OLD_PID" != "$$" ]; then
-    echo "Killing chart pid: $OLD_PID"
-    kill "$OLD_PID" 2>/dev/null || true
-  fi
 done
 sleep 1
 
@@ -35,7 +29,7 @@ if command -v tmux >/dev/null 2>&1; then
 fi
 
 # 可选：清理 JSON
-rm -f "$JSON_PATH"
+rm -f "$JSON_PATH" /tmp/codex_status_watch.pid
 
 echo
 echo "Stopped."
