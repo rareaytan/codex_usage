@@ -45,6 +45,16 @@ class StatusReadyTest(unittest.TestCase):
 
         self.assertTrue(status_json_has_quota_values(path))
 
+    def test_status_with_five_hour_only_is_ready(self):
+        path = self.write_status({
+            "status": {
+                "five_hour_left_percent": 75,
+                "weekly_left_percent": None,
+            }
+        })
+
+        self.assertTrue(status_json_has_quota_values(path))
+
 
 if __name__ == "__main__":
     unittest.main()

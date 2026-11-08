@@ -4,6 +4,32 @@ from codex_tmux_status_watch import parse_status, status_needs_limit_refresh
 
 
 class ParseStatusTest(unittest.TestCase):
+    def test_parses_plus_five_hour_and_weekly_limits(self):
+        text = """
+│  Account:                     user@example.com (Plus)                       │
+│  5h limit:                    [████████████████░░░░] 81% left                │
+│                               (resets 3:42 PM)                              │
+│  Weekly limit:                [██████████████████░░] 92% left                │
+│                               (resets 10:53 AM on 27 Oct)                   │
+"""
+
+        status = parse_status(text)
+
+        self.assertEqual(status["five_hour_left_percent"], 81)
+        self.assertEqual(status["five_hour_reset"], "3:42 PM")
+        self.assertEqual(status["weekly_left_percent"], 92)
+        self.assertEqual(status["weekly_reset"], "10:53 AM on 27 Oct")
+
+    def test_parses_five_hour_spelled_out_on_one_line(self):
+        text = """
+│  5-hour limit: [████████████████████] 100% left (resets 18:19) │
+"""
+
+        status = parse_status(text)
+
+        self.assertEqual(status["five_hour_left_percent"], 100)
+        self.assertEqual(status["five_hour_reset"], "18:19")
+
     def test_keeps_primary_limits_when_pro_status_includes_spark_limits(self):
         text = """
 │  Account:                     rareay.tan@gmail.com (Plus)                    │
