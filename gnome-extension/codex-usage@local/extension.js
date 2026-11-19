@@ -40,6 +40,8 @@ class CodexUsageIndicator extends PanelMenu.Button {
         this.add_child(this._label);
 
         this._accountItem = this._makeInfoItem('账户', 'N/A');
+        this._fiveHourItem = this._makeInfoItem('5h 额度', 'N/A');
+        this._fiveHourResetItem = this._makeInfoItem('5h 重置', 'N/A');
         this._quotaItem = this._makeInfoItem('7 天额度', 'N/A');
         this._timeItem = this._makeInfoItem('时间额度', 'N/A');
         this._resetItem = this._makeInfoItem('重置时间', 'N/A');
@@ -80,6 +82,7 @@ class CodexUsageIndicator extends PanelMenu.Button {
         });
         item.add_child(nameLabel);
         item.add_child(valueLabel);
+        item._nameLabel = nameLabel;
         item._valueLabel = valueLabel;
         this.menu.addMenuItem(item);
         return item;
@@ -89,10 +92,14 @@ class CodexUsageIndicator extends PanelMenu.Button {
         this._label.text = 'codex:--% time:--%';
         this._label.set_style(`color: ${COLORS.unavailable};`);
         this._accountItem._valueLabel.text = message;
+        this._fiveHourItem._valueLabel.text = 'N/A';
+        this._fiveHourResetItem._valueLabel.text = 'N/A';
         this._quotaItem._valueLabel.text = 'N/A';
         this._timeItem._valueLabel.text = 'N/A';
         this._resetItem._valueLabel.text = 'N/A';
         this._updatedItem._valueLabel.text = 'N/A';
+        this._fiveHourItem.hide();
+        this._fiveHourResetItem.hide();
     }
 
     _isStale(timestamp) {
@@ -107,19 +114,30 @@ class CodexUsageIndicator extends PanelMenu.Button {
     }
 
     _remainingTimePercent(resetText) {
-        // The watcher currently emits values such as "17:58 on 29 Sep".
-        const match = resetText.match(/^(\d{1,2}):(\d{2})\s+on\s+(\d{1,2})\s+([A-Za-z]{3})$/);
+        // Codex may emit either "17:58 on 29 Sep" or
+        // "10:35 AM on 4 Oct" depending on the client version.
+        const match = resetText.match(
+            /^(\d{1,2}):(\d{2})(?:\s+(AM|PM))?\s+on\s+(\d{1,2})\s+([A-Za-z]{3})$/i
+        );
         if (!match)
             return null;
 
-        const month = MONTHS[match[4]];
+        const monthName = match[5][0].toUpperCase() + match[5].slice(1).toLowerCase();
+        const month = MONTHS[monthName];
         if (month === undefined)
             return null;
 
+        let hour = Number(match[1]);
+        const meridiem = match[3]?.toUpperCase();
+        if (meridiem === 'AM')
+            hour %= 12;
+        else if (meridiem === 'PM')
+            hour = hour % 12 + 12;
+
         const now = new Date();
         let reset = new Date(
-            now.getFullYear(), month, Number(match[3]),
-            Number(match[1]), Number(match[2]), 0, 0
+            now.getFullYear(), month, Number(match[4]),
+            hour, Number(match[2]), 0, 0
         );
         if (reset <= now)
             reset.setFullYear(reset.getFullYear() + 1);
@@ -152,13 +170,39 @@ class CodexUsageIndicator extends PanelMenu.Button {
 
         const percent = Math.max(0, Math.min(100, Math.trunc(left)));
         const reset = status.weekly_reset || 'N/A';
+        const rawFiveHour = status.five_hour_left_percent;
+        const parsedFiveHour = Number(rawFiveHour);
+        const hasFiveHour = rawFiveHour !== null && rawFiveHour !== undefined &&
+            Number.isFinite(parsedFiveHour);
+        const plusMode = hasFiveHour || /\bplus\b/i.test(status.account || '');
+        const fiveHourPercent = hasFiveHour
+            ? Math.max(0, Math.min(100, Math.trunc(parsedFiveHour)))
+            : null;
         const timePercent = this._remainingTimePercent(reset);
         const stale = this._isStale(data.timestamp);
         const warning = this._isBehindTime(percent, timePercent);
         const color = stale ? COLORS.stale : warning ? COLORS.warning : COLORS.normal;
 
         const timeText = timePercent === null ? '--' : timePercent;
-        this._label.text = `codex:${percent}% time:${timeText}%`;
+        if (plusMode) {
+            const fiveHourText = fiveHourPercent === null ? '--' : fiveHourPercent;
+            this._label.text = `5h:${fiveHourText}% week:${percent}%`;
+            this._fiveHourItem.show();
+            this._fiveHourResetItem.show();
+            this._timeItem.hide();
+            this._fiveHourItem._valueLabel.text = fiveHourPercent === null
+                ? 'N/A' : `${fiveHourPercent}%`;
+            this._fiveHourResetItem._valueLabel.text = status.five_hour_reset || 'N/A';
+            this._quotaItem._nameLabel.text = '1 周额度';
+            this._resetItem._nameLabel.text = '1 周重置';
+        } else {
+            this._label.text = `codex:${percent}% time:${timeText}%`;
+            this._fiveHourItem.hide();
+            this._fiveHourResetItem.hide();
+            this._timeItem.show();
+            this._quotaItem._nameLabel.text = '7 天额度';
+            this._resetItem._nameLabel.text = '重置时间';
+        }
         this._label.set_style(`color: ${color};`);
         this._accountItem._valueLabel.text = status.account || 'N/A';
         this._quotaItem._valueLabel.text = stale ? `${percent}%（数据过期）` : `${percent}%`;

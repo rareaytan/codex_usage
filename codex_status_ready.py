@@ -15,7 +15,10 @@ def status_json_has_quota_values(path) -> bool:
         return False
 
     status = data.get("status") or {}
-    return status.get("weekly_left_percent") is not None
+    return (
+        status.get("weekly_left_percent") is not None
+        or status.get("five_hour_left_percent") is not None
+    )
 
 
 def main(argv):

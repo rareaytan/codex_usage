@@ -171,6 +171,7 @@ def parse_status(text: str) -> dict:
     从 Codex /status 屏幕中提取：
     - model
     - account
+    - 5-hour left percent and reset time
     - weekly left percent
     - weekly reset time
     - spark weekly left percent
@@ -179,6 +180,8 @@ def parse_status(text: str) -> dict:
     result = {
         "model": "",
         "account": "",
+        "five_hour_left_percent": None,
+        "five_hour_reset": "",
         "weekly_left_percent": None,
         "weekly_reset": "",
         "spark_weekly_left_percent": None,
@@ -209,7 +212,10 @@ def parse_status(text: str) -> dict:
             in_spark_section = True
             # 不 continue — 这行本身可能就包含了额度数据
 
-        if "weekly limit:" in low:
+        if re.search(r"\b(?:5h|5[- ]hour)\s+limit:", low):
+            target_left = "five_hour_left_percent"
+            target_reset = "five_hour_reset"
+        elif "weekly limit:" in low:
             if in_spark_section:
                 if result["spark_weekly_left_percent"] is not None:
                     continue
@@ -220,22 +226,22 @@ def parse_status(text: str) -> dict:
                     continue
                 target_left = "weekly_left_percent"
                 target_reset = "weekly_reset"
-
-            m = re.search(r"(\d+)%\s+left", ln, re.IGNORECASE)
-            if m:
-                result[target_left] = int(m.group(1))
-
-            # reset 可能在同一行，也可能在下一行
-            m = re.search(r"resets\s+([^)│]+)", ln, re.IGNORECASE)
-            if m:
-                result[target_reset] = m.group(1).strip()
-            else:
-                if i + 1 < len(lines):
-                    next_ln = lines[i + 1]
-                    m2 = re.search(r"resets\s+([^)│]+)", next_ln, re.IGNORECASE)
-                    if m2:
-                        result[target_reset] = m2.group(1).strip()
+        else:
             continue
+
+        m = re.search(r"(\d+)%\s+left", ln, re.IGNORECASE)
+        if m:
+            result[target_left] = int(m.group(1))
+
+        # reset 可能在同一行，也可能在下一行
+        m = re.search(r"resets\s+([^)│]+)", ln, re.IGNORECASE)
+        if m:
+            result[target_reset] = m.group(1).strip()
+        elif i + 1 < len(lines):
+            next_ln = lines[i + 1]
+            m2 = re.search(r"resets\s+([^)│]+)", next_ln, re.IGNORECASE)
+            if m2:
+                result[target_reset] = m2.group(1).strip()
 
     return result
 
@@ -243,6 +249,9 @@ def parse_status(text: str) -> dict:
 def format_compact(status: dict, ts: str, workdir: str = "") -> str:
     model = status.get("model") or "N/A"
     account = status.get("account") or "N/A"
+
+    five_hour_left = status.get("five_hour_left_percent")
+    five_hour_reset = status.get("five_hour_reset") or "N/A"
 
     weekly_left = status.get("weekly_left_percent")
     weekly_reset = status.get("weekly_reset") or "N/A"
@@ -253,6 +262,11 @@ def format_compact(status: dict, ts: str, workdir: str = "") -> str:
     weekly_text = (
         f"{weekly_left}% left, resets {weekly_reset}"
         if weekly_left is not None
+        else "N/A"
+    )
+    five_hour_text = (
+        f"{five_hour_left}% left, resets {five_hour_reset}"
+        if five_hour_left is not None
         else "N/A"
     )
     spark_weekly_text = (
@@ -266,6 +280,7 @@ def format_compact(status: dict, ts: str, workdir: str = "") -> str:
         f"Time   : {ts}",
         f"Model  : {model}",
         f"Account: {account}",
+        f"5hours : {five_hour_text}",
         f"7days  : {weekly_text}",
         f"5.3Spark : {spark_weekly_text}",
     ]

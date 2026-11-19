@@ -2,6 +2,8 @@
 
 在 GNOME 顶栏显示 Codex 额度和状态。
 
+`ubuntu24` 分支适用于 Ubuntu 24.04 / GNOME Shell 46，需在已登录的桌面用户会话中运行。Codex CLI 需已安装、位于 `PATH` 中并已登录账户。
+
 ![运行效果](docs/images/image.png)
 
 ## 依赖安装
@@ -30,7 +32,7 @@
 gnome-extensions enable codex-usage@local
 ```
 
-顶栏将显示 `codex:85% time:80%`，分别表示剩余额度和当前额度周期的剩余时间。点击它可以查看账户、7 天剩余额度、时间额度、重置时间和更新时间，也可以打开额度曲线。
+Pro 账户的顶栏显示为 `codex:85% time:80%`，分别表示周剩余额度和当前周期的剩余时间。Plus 账户显示为 `5h:85% week:80%`，分别表示 5 小时和 1 周剩余额度。点击它可以查看各额度、重置时间和更新时间，也可以打开额度曲线。
 
 ## 使用
 
@@ -38,6 +40,15 @@ gnome-extensions enable codex-usage@local
 
 ```bash
 ./start_codex_usage.sh
+```
+
+采集进程由 systemd 用户服务管理，关闭终端后继续运行，异常退出后自动重启。此服务不会自动开机启动，注销后需重新运行启动脚本。
+
+查看运行状态和日志：
+
+```bash
+systemctl --user status codex-usage-watcher.service
+tail -f /tmp/codex_status_watch.log
 ```
 
 停止：
